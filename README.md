@@ -40,7 +40,10 @@ Follow these steps to get the application running locally for development and te
 
 ```bash
 cd backend
-pip install .
+python3 -m venv .venv
+source .venv/bin/activate
+
+(virtual_env)> pip install .
 ```
 
 **Frontend:**
@@ -55,6 +58,8 @@ npm install
 **Backend & Frontend:**
 
 ```bash
+# inside the python virtual environment
+# cd project root
 make dev
 ```
 This will run the backend and frontend development servers.    Open your browser and navigate to the frontend development server URL (e.g., `http://localhost:5173/app`).
