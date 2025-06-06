@@ -22,19 +22,20 @@ export default function App() {
     reasoning_model: string;
   }>({
     apiUrl: import.meta.env.DEV
-      ? `https://${window.location.hostname}/api`
-      : `https://${window.location.hostname}/`,
+      ? `${window.location.protocol}//${window.location.host}/api`
+      : `${window.location.protocol}//${window.location.host}`,
     assistantId: "agent",
     messagesKey: "messages",
     onFinish: (event: any) => {
-      console.log(event);
+      console.log("Stream finished:", event);
     },
     onUpdateEvent: (event: any) => {
+      console.log("Update event received:", event);
       let processedEvent: ProcessedEvent | null = null;
       if (event.generate_query) {
         processedEvent = {
           title: "Generating Search Queries",
-          data: event.generate_query.query_list.join(", "),
+          data: event.generate_query.query_list?.join(", ") || "Generating queries...",
         };
       } else if (event.web_research) {
         const sources = event.web_research.sources_gathered || [];
@@ -54,9 +55,7 @@ export default function App() {
           title: "Reflection",
           data: event.reflection.is_sufficient
             ? "Search successful, generating final answer."
-            : `Need more information, searching for ${event.reflection.follow_up_queries.join(
-                ", "
-              )}`,
+            : `Need more information, searching for ${event.reflection.follow_up_queries?.join(", ") || "additional topics"}`,
         };
       } else if (event.finalize_answer) {
         processedEvent = {
@@ -153,8 +152,8 @@ export default function App() {
   }, [thread]);
 
   return (
-    <div className="flex h-screen bg-neutral-800 text-neutral-100 font-sans antialiased">
-      <main className="flex-1 flex flex-col overflow-hidden max-w-4xl mx-auto w-full">
+    <div className="flex overflow-auto bg-neutral-800 text-neutral-100 font-sans antialiased min-h-screen">
+      <main className="flex-1 flex flex-col overflow-auto max-w-4xl mx-auto w-full">
         <div
           className={`flex-1 overflow-y-auto ${
             thread.messages.length === 0 ? "flex" : ""

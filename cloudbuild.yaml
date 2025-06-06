@@ -1,5 +1,5 @@
 steps:
-  # Step 1: Build backend Docker image
+  # Step 1: Build Docker image (includes both frontend and backend)
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
@@ -10,32 +10,13 @@ steps:
       - '.'
     id: 'build-backend'
 
-  # Step 2: Build frontend Docker image
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'build'
-      - '-f'
-      - 'frontend/Dockerfile'
-      - '-t'
-      - 'gcr.io/$PROJECT_ID/deep-research-frontend:latest'
-      - './frontend'
-    id: 'build-frontend'
-
-  # Step 3: Push backend image to Container Registry
+  # Step 2: Push image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
       - 'gcr.io/$PROJECT_ID/deep-research-backend:latest'
     id: 'push-backend'
     waitFor: ['build-backend']
-
-  # Step 4: Push frontend image to Container Registry
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'push'
-      - 'gcr.io/$PROJECT_ID/deep-research-frontend:latest'
-    id: 'push-frontend'
-    waitFor: ['build-frontend']
 
   # Step 5: Create static IP if it doesn't exist
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -50,7 +31,7 @@ steps:
           echo "Static IP address deep-research-ip already exists"
         fi
     id: 'create-static-ip'
-    waitFor: ['push-backend', 'push-frontend']
+    waitFor: ['push-backend']
 
   # Step 6: Create namespace first
   - name: 'gcr.io/cloud-builders/kubectl'
@@ -81,7 +62,17 @@ steps:
     id: 'deploy-redis-postgres'
     waitFor: ['deploy-namespace']
 
-  # Step 9: Deploy backend
+  # Step 9: Deploy backend config
+  - name: 'gcr.io/cloud-builders/kubectl'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - 'sed "s/\$${PROJECT_ID}/$PROJECT_ID/g; s/\$${DOMAIN_NAME}/${_DOMAIN_NAME}/g" k8s/backend-config.yaml | kubectl apply -f -'
+    env: ['CLOUDSDK_COMPUTE_ZONE=${_GKE_REGION}', 'CLOUDSDK_CONTAINER_CLUSTER=${_GKE_CLUSTER_NAME}']
+    id: 'deploy-backend-config'
+    waitFor: ['deploy-redis-postgres']
+
+  # Step 10: Deploy backend
   - name: 'gcr.io/cloud-builders/kubectl'
     entrypoint: 'bash'
     args:
@@ -89,17 +80,7 @@ steps:
       - 'sed "s/\$${PROJECT_ID}/$PROJECT_ID/g; s/\$${DOMAIN_NAME}/${_DOMAIN_NAME}/g" k8s/backend-deployment.yaml | kubectl apply -f -'
     env: ['CLOUDSDK_COMPUTE_ZONE=${_GKE_REGION}', 'CLOUDSDK_CONTAINER_CLUSTER=${_GKE_CLUSTER_NAME}']
     id: 'deploy-backend'
-    waitFor: ['deploy-redis-postgres']
-
-  # Step 10: Deploy frontend
-  - name: 'gcr.io/cloud-builders/kubectl'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - 'sed "s/\$${PROJECT_ID}/$PROJECT_ID/g; s/\$${DOMAIN_NAME}/${_DOMAIN_NAME}/g" k8s/frontend-deployment.yaml | kubectl apply -f -'
-    env: ['CLOUDSDK_COMPUTE_ZONE=${_GKE_REGION}', 'CLOUDSDK_CONTAINER_CLUSTER=${_GKE_CLUSTER_NAME}']
-    id: 'deploy-frontend'
-    waitFor: ['deploy-backend']
+    waitFor: ['deploy-backend-config']
 
   # Step 11: Deploy static IP and certificate
   - name: 'gcr.io/cloud-builders/kubectl'
@@ -109,7 +90,7 @@ steps:
       - 'sed "s/\$${PROJECT_ID}/$PROJECT_ID/g; s/\$${DOMAIN_NAME}/${_DOMAIN_NAME}/g" k8s/static-ip-certificate.yaml | kubectl apply -f -'
     env: ['CLOUDSDK_COMPUTE_ZONE=${_GKE_REGION}', 'CLOUDSDK_CONTAINER_CLUSTER=${_GKE_CLUSTER_NAME}']
     id: 'deploy-static-ip-cert'
-    waitFor: ['deploy-frontend']
+    waitFor: ['deploy-backend']
 
   # Step 12: Deploy ingress
   - name: 'gcr.io/cloud-builders/kubectl'
@@ -120,6 +101,18 @@ steps:
     env: ['CLOUDSDK_COMPUTE_ZONE=${_GKE_REGION}', 'CLOUDSDK_CONTAINER_CLUSTER=${_GKE_CLUSTER_NAME}']
     id: 'deploy-ingress'
     waitFor: ['deploy-static-ip-cert']
+
+  # Step 13: Restart backend deployment to pull latest image
+  - name: 'gcr.io/cloud-builders/kubectl'
+    args:
+      - 'rollout'
+      - 'restart'
+      - 'deployment/deep-research-backend'
+      - '-n'
+      - 'deep-research'
+    env: ['CLOUDSDK_COMPUTE_ZONE=${_GKE_REGION}', 'CLOUDSDK_CONTAINER_CLUSTER=${_GKE_CLUSTER_NAME}']
+    id: 'restart-backend'
+    waitFor: ['deploy-ingress']
 
 
 substitutions:
@@ -138,7 +131,6 @@ timeout: '1200s'
 
 # Images to be pushed to Container Registry
 images:
-  - 'gcr.io/$PROJECT_ID/deep-research-frontend:latest'
   - 'gcr.io/$PROJECT_ID/deep-research-backend:latest'
 
 # Grant permissions to Cloud Build service account

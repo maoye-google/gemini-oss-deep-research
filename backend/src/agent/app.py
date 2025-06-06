@@ -15,7 +15,7 @@ async def health_check():
 @app.get("/")
 async def root():
     from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/app")
+    return RedirectResponse(url="/app/")
 
 
 def create_frontend_router(build_dir="../frontend/dist"):

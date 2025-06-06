@@ -61,11 +61,13 @@ kind: Service
 metadata:
   name: deep-research-backend
   namespace: deep-research
+  annotations:
+    cloud.google.com/backend-config: '{"default": "deep-research-backend-config"}'
 spec:
   selector:
     app: deep-research-backend
   ports:
   - protocol: TCP
-    port: 80
+    port: 8000
     targetPort: 8000
   type: ClusterIP
