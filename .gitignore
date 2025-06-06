@@ -204,3 +204,4 @@ backend/.langgraph_api
 credentials/*
 .idx/
 **/.env
+**/setup-gke-secrets.sh

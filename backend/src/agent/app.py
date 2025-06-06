@@ -8,6 +8,16 @@ import fastapi.exceptions
 app = FastAPI()
 
 
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+@app.get("/")
+async def root():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/app")
+
+
 def create_frontend_router(build_dir="../frontend/dist"):
     """Creates a router to serve the React frontend.
 

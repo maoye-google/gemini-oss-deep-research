@@ -15,9 +15,11 @@ export default defineConfig({
   server: {
     proxy: {
       // Proxy everything that is NOT /app to the backend server
-      "^(?!/app).*": {
+      "/api": {
         target: "http://127.0.0.1:2024", // Default backend address
         changeOrigin: true,
+        // Optionally rewrite path if needed (e.g., remove /api prefix if backend doesn't expect it)
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
     host: '0.0.0.0', // Ensure Vite listens on all interfaces
